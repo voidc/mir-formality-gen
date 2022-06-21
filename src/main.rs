@@ -282,9 +282,10 @@ impl<'tcx> FormalityGen<'tcx> {
                 )
             }
             ty::PredicateKind::Projection(proj_pred) => {
-                let alias_name = self
+                let assoc_item = self
                     .tcx
-                    .def_path_str(proj_pred.projection_ty.trait_def_id(self.tcx));
+                    .associated_item(proj_pred.projection_ty.item_def_id);
+                let trait_name = self.tcx.def_path_str(assoc_item.container.id());
 
                 let alias_params = proj_pred
                     .projection_ty
@@ -297,8 +298,9 @@ impl<'tcx> FormalityGen<'tcx> {
                 let rhs_ty = proj_pred.term.ty().unwrap_or_else(|| unimplemented!());
 
                 format!(
-                    "((alias-ty {alias_name} {alias_params}) == {})",
-                    self.emit_ty(rhs_ty)
+                    "((alias-ty ({trait_name} {}) {alias_params}) == {})",
+                    assoc_item.name,
+                    self.emit_ty(rhs_ty),
                 )
             }
             _ => "unknown-predicate".to_string(),
@@ -445,7 +447,37 @@ impl<'tcx> FormalityGen<'tcx> {
                     format!("(tuple {substs_str})")
                 }
             }
-            ty::TyKind::Projection(_) => todo!(),
+            ty::TyKind::Projection(projection_ty) => {
+                let projection_ty: &ty::ProjectionTy<'tcx> = projection_ty;
+
+                let self_ty = self.emit_user_ty(projection_ty.self_ty());
+                let assoc_item = self.tcx.associated_item(projection_ty.item_def_id);
+                let trait_def_id = assoc_item.container.id();
+                let trait_name = self.tcx.def_path_str(trait_def_id);
+                let trait_generics = self.tcx.generics_of(trait_def_id);
+
+                let trait_params = projection_ty
+                    .substs
+                    .iter()
+                    .take(trait_generics.count())
+                    .skip(1)
+                    .map(|arg| self.emit_generic_arg(arg))
+                    .intersperse(" ".to_string())
+                    .collect::<String>();
+
+                let assoc_params = projection_ty
+                    .substs
+                    .iter()
+                    .skip(trait_generics.count())
+                    .map(|arg| self.emit_generic_arg(arg))
+                    .intersperse(" ".to_string())
+                    .collect::<String>();
+
+                format!(
+                    "(< {self_ty} as {trait_name}[{trait_params}] > :: {}[{assoc_params}])",
+                    assoc_item.name,
+                )
+            }
             ty::TyKind::Param(param_ty) => format!("{}", param_ty.name),
             _ => format!("(unknown-ty {ty:?})"),
         }

@@ -1,5 +1,6 @@
-use crate::gen::FormalityGen;
 use rustc_middle::mir;
+
+use crate::gen::FormalityGen;
 
 impl<'tcx> FormalityGen<'tcx> {
     fn emit_place(&self, place: &mir::Place) -> String {

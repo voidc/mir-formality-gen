@@ -1,19 +1,8 @@
-use rustc_middle::ty::{self, Ty};
+use rustc_middle::ty;
 
 use crate::gen::FormalityGen;
 
 impl<'tcx> FormalityGen<'tcx> {
-    pub fn emit_bound_var(&self, bound_var: ty::BoundVariableKind) -> String {
-        match bound_var {
-            ty::BoundVariableKind::Region(br_kind) => match br_kind {
-                ty::BoundRegionKind::BrNamed(_, name) => format!("(lifetime {name})"),
-                _ => format!("(lifetime {br_kind:?})"),
-            },
-            ty::BoundVariableKind::Ty(bt_kind) => format!("(type {bt_kind:?})"),
-            _ => unimplemented!(),
-        }
-    }
-
     pub fn emit_where_clause(&self, pred: &ty::Predicate<'tcx>) -> String {
         let clause = match pred.kind().skip_binder() {
             ty::PredicateKind::Trait(trait_pred) => {
@@ -29,7 +18,7 @@ impl<'tcx> FormalityGen<'tcx> {
                     .intersperse(" ".to_string())
                     .collect::<String>();
 
-                format!("({self_ty} : {trait_name} ({params}))")
+                format!("({self_ty} : {trait_name}[{params}])")
             }
             ty::PredicateKind::RegionOutlives(outlives_pred) => {
                 format!(
@@ -62,7 +51,7 @@ impl<'tcx> FormalityGen<'tcx> {
                 let rhs_ty = proj_pred.term.ty().unwrap_or_else(|| unimplemented!());
 
                 format!(
-                    "((alias-ty ({trait_name} {}) {alias_params}) == {})",
+                    "((alias-ty ({trait_name} {})[{alias_params}]) == {})",
                     assoc_item.name,
                     self.emit_ty(rhs_ty),
                 )
@@ -85,7 +74,7 @@ impl<'tcx> FormalityGen<'tcx> {
         }
     }
 
-    fn emit_user_ty(&self, ty: Ty<'tcx>) -> String {
+    fn emit_user_ty(&self, ty: ty::Ty<'tcx>) -> String {
         match ty.kind() {
             ty::TyKind::Bool => "bool".into(),
             ty::TyKind::Int(int_ty) => int_ty.name_str().into(),
@@ -183,8 +172,20 @@ impl<'tcx> FormalityGen<'tcx> {
         }
     }
 
-    pub fn emit_ty(&self, ty: Ty<'tcx>) -> String {
+    pub fn emit_ty(&self, ty: ty::Ty<'tcx>) -> String {
         format!("(user-ty {})", self.emit_user_ty(ty))
+    }
+
+    pub fn emit_trait_ref(&self, trait_ref: ty::TraitRef<'tcx>) -> String {
+        let name = self.tcx.def_path_str(trait_ref.def_id);
+        let args = trait_ref
+            .substs
+            .iter()
+            .map(|arg| self.emit_generic_arg(arg))
+            .intersperse(" ".to_string())
+            .collect::<String>();
+
+        format!("({name}[{args}])")
     }
 
     fn emit_generic_arg(&self, generic_arg: ty::subst::GenericArg<'tcx>) -> String {
@@ -195,17 +196,36 @@ impl<'tcx> FormalityGen<'tcx> {
         }
     }
 
+    pub fn emit_generic_param(&self, param: &'tcx ty::GenericParamDef) -> String {
+        let kind = match param.kind {
+            ty::GenericParamDefKind::Lifetime => "lifetime",
+            ty::GenericParamDefKind::Type { .. } => "type",
+            _ => unimplemented!(),
+        };
+        format!("({kind} {})", param.name)
+    }
+
+    pub fn emit_bound_var(&self, bound_var: ty::BoundVariableKind) -> String {
+        match bound_var {
+            ty::BoundVariableKind::Region(br_kind) => match br_kind {
+                ty::BoundRegionKind::BrNamed(_, name) => format!("(lifetime {name})"),
+                ty::BoundRegionKind::BrAnon(idx) => format!("(lifetime '{idx})"),
+                _ => format!("(lifetime {br_kind:?})"),
+            },
+            ty::BoundVariableKind::Ty(bt_kind) => format!("(type {bt_kind:?})"),
+            _ => unimplemented!(),
+        }
+    }
+
     pub fn emit_lifetime(&self, lifetime: ty::Region<'tcx>) -> String {
         match lifetime.kind() {
             ty::RegionKind::ReStatic => "static".to_string(),
             ty::RegionKind::ReEarlyBound(re) => format!("{}", re.name),
-            ty::RegionKind::ReLateBound(
-                _,
-                ty::BoundRegion {
-                    kind: ty::BoundRegionKind::BrNamed(_, name),
-                    ..
-                },
-            ) => format!("{name}"),
+            ty::RegionKind::ReLateBound(_, bound_region) => match bound_region.kind {
+                ty::BoundRegionKind::BrNamed(_, name) => format!("{name}"),
+                ty::BoundRegionKind::BrAnon(idx) => format!("'{idx}"),
+                _ => format!("{:?}", bound_region.kind),
+            },
             ty::RegionKind::ReErased => "?".to_string(),
             _ => format!("(unknown-lt {lifetime:?})"),
         }

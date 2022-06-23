@@ -29,8 +29,11 @@ impl<'tcx> FormalityGen<'tcx> {
                     rustc_hir::ItemKind::Impl(impl_item) => {
                         self.emit_trait_impl_decl(item.def_id, impl_item.items)
                     }
-                    rustc_hir::ItemKind::Struct(_, _) => todo!(),
-                    rustc_hir::ItemKind::Enum(_, _) => todo!(),
+                    rustc_hir::ItemKind::Struct(_, _)
+                    | rustc_hir::ItemKind::Enum(_, _)
+                    | rustc_hir::ItemKind::Union(_, _) => {
+                        self.emit_adt_decl(item.ident, item.def_id)
+                    }
                     _ => format!("(unknown-item {:?})", item.ident),
                 }
             })
@@ -38,6 +41,43 @@ impl<'tcx> FormalityGen<'tcx> {
             .collect::<String>();
 
         format!("({crate_name} (crate [\n{crate_items}]))")
+    }
+
+    fn emit_adt_decl(
+        &self,
+        name: rustc_span::symbol::Ident,
+        def_id: rustc_span::def_id::LocalDefId,
+    ) -> String {
+        let adt_def: ty::AdtDef<'tcx> = self.tcx.adt_def(def_id);
+        let adt_kind = match adt_def.adt_kind() {
+            ty::AdtKind::Struct => "struct",
+            ty::AdtKind::Union => "union",
+            ty::AdtKind::Enum => "enum",
+        };
+
+        let vars = self.emit_generics(def_id);
+        let where_clauses = self.emit_where_clauses(def_id);
+
+        let variants = adt_def
+            .variants()
+            .iter()
+            .map(|variant| {
+                let fields = variant
+                    .fields
+                    .iter()
+                    .map(|field| {
+                        let field_ty = self.emit_ty(self.tcx.type_of(field.did));
+                        format!("({} {field_ty})", field.name)
+                    })
+                    .intersperse(" ".to_string())
+                    .collect::<String>();
+
+                format!("({} [{fields}])", variant.name)
+            })
+            .intersperse("\n  ".to_string())
+            .collect::<String>();
+
+        format!("({adt_kind} {name}[{vars}] where [{where_clauses}] {{\n  {variants}\n}})")
     }
 
     fn emit_trait_decl(

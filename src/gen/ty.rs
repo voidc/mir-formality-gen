@@ -3,11 +3,15 @@ use rustc_middle::ty;
 use crate::gen::FormalityGen;
 
 impl<'tcx> FormalityGen<'tcx> {
-    pub fn emit_where_clause(&self, pred: &ty::Predicate<'tcx>) -> String {
+    pub fn emit_where_clause(
+        &self,
+        pred: &ty::Predicate<'tcx>,
+        replace_self_ty: Option<String>,
+    ) -> String {
         let clause = match pred.kind().skip_binder() {
             ty::PredicateKind::Trait(trait_pred) => {
                 let trait_name = self.tcx.def_path_str(trait_pred.def_id());
-                let self_ty = self.emit_ty(trait_pred.self_ty());
+                let self_ty = replace_self_ty.unwrap_or_else(|| self.emit_ty(trait_pred.self_ty()));
 
                 let params = trait_pred
                     .trait_ref
@@ -21,6 +25,7 @@ impl<'tcx> FormalityGen<'tcx> {
                 format!("({self_ty} : {trait_name}[{params}])")
             }
             ty::PredicateKind::RegionOutlives(outlives_pred) => {
+                assert!(replace_self_ty.is_none());
                 format!(
                     "({} : {}))",
                     self.emit_lifetime(outlives_pred.0),
@@ -28,14 +33,12 @@ impl<'tcx> FormalityGen<'tcx> {
                 )
             }
             ty::PredicateKind::TypeOutlives(outlives_pred) => {
-                format!(
-                    "({} : {}))",
-                    self.emit_ty(outlives_pred.0),
-                    self.emit_lifetime(outlives_pred.1)
-                )
+                let self_ty = replace_self_ty.unwrap_or_else(|| self.emit_ty(outlives_pred.0));
+                format!("({} : {}))", self_ty, self.emit_lifetime(outlives_pred.1))
             }
             ty::PredicateKind::Projection(proj_pred) => {
-                let assoc_item = self
+                assert!(replace_self_ty.is_none());
+                let assoc_item: &ty::AssocItem = self
                     .tcx
                     .associated_item(proj_pred.projection_ty.item_def_id);
                 let trait_name = self.tcx.def_path_str(assoc_item.container.id());

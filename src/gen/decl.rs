@@ -57,13 +57,33 @@ impl<'tcx> FormalityGen<'tcx> {
                     trait_item.id.def_id,
                     trait_item.defaultness.has_value(),
                 ),
-                rustc_hir::AssocItemKind::Type => todo!(),
+                rustc_hir::AssocItemKind::Type => {
+                    self.emit_assoc_ty_decl(trait_item.ident, trait_item.id.def_id)
+                }
                 rustc_hir::AssocItemKind::Const => unimplemented!(),
             })
             .intersperse("\n  ".to_string())
             .collect::<String>();
 
-        format!("(trait {name}[{vars}] where ({where_clauses}) {{\n  {trait_items}\n}})")
+        format!("(trait {name}[{vars}] where [{where_clauses}] {{\n  {trait_items}\n}})")
+    }
+
+    fn emit_assoc_ty_decl(
+        &self,
+        name: rustc_span::symbol::Ident,
+        def_id: rustc_span::def_id::LocalDefId,
+    ) -> String {
+        let generics = self.emit_generics(def_id);
+        let where_clauses = self.emit_where_clauses(def_id);
+
+        let bounds: &'tcx ty::List<ty::Predicate<'tcx>> = self.tcx.item_bounds(def_id);
+        let bounds = bounds
+            .iter()
+            .map(|pred| self.emit_where_clause(&pred, Some("T".to_string())))
+            .intersperse(" ".to_string())
+            .collect::<String>();
+
+        format!("(type {name}[{generics}] (: (type T) [{bounds}]) where [{where_clauses}])")
     }
 
     fn emit_trait_impl_decl(
@@ -85,13 +105,27 @@ impl<'tcx> FormalityGen<'tcx> {
                 rustc_hir::AssocItemKind::Fn { .. } => {
                     self.emit_fn_decl(impl_item.ident, impl_item.id.def_id, true)
                 }
-                rustc_hir::AssocItemKind::Type => todo!(),
+                rustc_hir::AssocItemKind::Type => {
+                    self.emit_assoc_ty_value_decl(impl_item.ident, impl_item.id.def_id)
+                }
                 rustc_hir::AssocItemKind::Const => unimplemented!(),
             })
             .intersperse("\n  ".to_string())
             .collect::<String>();
 
-        format!("(impl[{impl_vars}] {trait_ref} where ({where_clauses}) {{\n  {impl_items}\n}})")
+        format!("(impl[{impl_vars}] {trait_ref} where [{where_clauses}] {{\n  {impl_items}\n}})")
+    }
+
+    fn emit_assoc_ty_value_decl(
+        &self,
+        name: rustc_span::symbol::Ident,
+        def_id: rustc_span::def_id::LocalDefId,
+    ) -> String {
+        let generics = self.emit_generics(def_id);
+        let where_clauses = self.emit_where_clauses(def_id);
+        let alias_ty = self.emit_ty(self.tcx.type_of(def_id));
+
+        format!("(type {name}[{generics}] = {alias_ty} where [{where_clauses}])")
     }
 
     fn emit_fn_decl(
@@ -134,11 +168,11 @@ impl<'tcx> FormalityGen<'tcx> {
 
             let body_str = self.emit_body(&*body);
             format!(
-                "(fn {name}[{vars}] ({inputs}) -> {output}\n where ({where_clauses})\n {body_str})"
+                "(fn {name}[{vars}] ({inputs}) -> {output}\n where [{where_clauses}]\n {body_str})"
             )
         } else {
             format!(
-                "(fn {name}[{vars}] ({inputs}) -> {output} where ({where_clauses}) trusted-fn-body)"
+                "(fn {name}[{vars}] ({inputs}) -> {output} where [{where_clauses}] trusted-fn-body)"
             )
         }
     }
@@ -174,7 +208,7 @@ impl<'tcx> FormalityGen<'tcx> {
         let predicates = self.tcx.predicates_of(def_id).predicates;
         predicates
             .iter()
-            .map(|(pred, _)| self.emit_where_clause(pred))
+            .map(|(pred, _)| self.emit_where_clause(pred, None))
             .intersperse(" ".to_string())
             .collect::<String>()
     }

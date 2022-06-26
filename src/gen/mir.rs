@@ -1,6 +1,7 @@
 use rustc_middle::mir;
 
 use crate::gen::FormalityGen;
+use crate::renumber_mir;
 
 impl<'tcx> FormalityGen<'tcx> {
     fn emit_place(&self, place: &mir::Place) -> String {
@@ -164,6 +165,14 @@ impl<'tcx> FormalityGen<'tcx> {
     }
 
     pub fn emit_body(&self, body: &mir::Body<'tcx>) -> String {
+        let mut body = body.clone();
+        let num_re_vars = renumber_mir::replace_regions_in_mir(&self.tcx, &mut body);
+
+        let vars = (0..num_re_vars)
+            .map(|var_idx| format!("(lifetime ?{var_idx})"))
+            .intersperse("\n     ".to_string())
+            .collect::<String>();
+
         let locals = body
             .local_decls
             .iter_enumerated()
@@ -194,14 +203,13 @@ impl<'tcx> FormalityGen<'tcx> {
 
                 let term = self.emit_terminator(bb_data.terminator());
                 format!(
-                    "(bb{} {{\n     ({stmts})\n     {term}\n   }})",
+                    "(bb{} {{\n     [{stmts}]\n     {term}\n   }})",
                     bb_id.index()
                 )
             })
             .intersperse("\n   ".to_string())
             .collect::<String>();
 
-        // TODO: generate KindedVarIds
-        format!("(∃ () {{\n  ({locals})\n\n  ({blocks})\n}})")
+        format!("(∃ [{vars}] {{\n  [{locals}]\n\n  [{blocks}]\n}})")
     }
 }

@@ -230,6 +230,7 @@ impl<'tcx> FormalityGen<'tcx> {
                 _ => format!("{:?}", bound_region.kind),
             },
             ty::RegionKind::ReErased => "?".to_string(),
+            ty::RegionKind::ReVar(vid) => format!("?{}", vid.index()),
             _ => format!("(unknown-lt {lifetime:?})"),
         }
     }

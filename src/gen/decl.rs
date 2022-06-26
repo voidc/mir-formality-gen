@@ -231,7 +231,7 @@ impl<'tcx> FormalityGen<'tcx> {
             .borrow();
         let body_str = self.emit_body(&*body);
 
-        format!("(static {name}[] where () : {ty_str} = {body_str})")
+        format!("(static {name}[] where () : {ty_str} =\n {body_str})")
     }
 
     fn emit_generics(&self, def_id: rustc_span::def_id::LocalDefId) -> String {

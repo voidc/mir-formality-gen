@@ -8,6 +8,7 @@ extern crate rustc_error_codes;
 extern crate rustc_errors;
 extern crate rustc_hash;
 extern crate rustc_hir;
+extern crate rustc_infer;
 extern crate rustc_interface;
 extern crate rustc_middle;
 extern crate rustc_session;
@@ -21,6 +22,7 @@ use rustc_session::config::{self, CheckCfg};
 use rustc_span::source_map;
 
 mod gen;
+mod renumber_mir;
 
 fn main() {
     let out = process::Command::new("rustc")

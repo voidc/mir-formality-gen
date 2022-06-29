@@ -176,7 +176,11 @@ impl<'tcx> FormalityGen<'tcx> {
     }
 
     pub fn emit_ty(&self, ty: ty::Ty<'tcx>) -> String {
-        format!("(mf-apply user-ty {})", self.emit_user_ty(ty))
+        if let ty::TyKind::Param(param_ty) = ty.kind() {
+            format!("{}", param_ty.name)
+        } else {
+            format!("(mf-apply user-ty {})", self.emit_user_ty(ty))
+        }
     }
 
     pub fn emit_trait_ref(&self, trait_ref: ty::TraitRef<'tcx>) -> String {

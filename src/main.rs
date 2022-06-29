@@ -14,17 +14,23 @@ extern crate rustc_middle;
 extern crate rustc_session;
 extern crate rustc_span;
 
-use std::{path, process, str};
+use std::{env, path, process, str};
 
 use rustc_errors::registry;
 use rustc_hash::{FxHashMap, FxHashSet};
 use rustc_session::config::{self, CheckCfg};
-use rustc_span::source_map;
 
 mod gen;
 mod renumber_mir;
 
 fn main() {
+    let args = env::args().skip(1).collect::<Vec<_>>();
+    let emit_let = args.iter().any(|arg| arg == "--let");
+    let input_path = args
+        .iter()
+        .find(|arg| !arg.starts_with("--"))
+        .expect("Specify input path");
+
     let out = process::Command::new("rustc")
         .arg("--print=sysroot")
         .current_dir(".")
@@ -44,33 +50,10 @@ fn main() {
         // cfg! configuration in addition to the default ones
         crate_cfg: FxHashSet::default(), // FxHashSet<(String, Option<String>)>
         crate_check_cfg: CheckCfg::default(), // CheckCfg
-        input: config::Input::Str {
-            name: source_map::FileName::Custom("main.rs".into()),
-            input: r#"
-static UNIT: &'static &'static () = &&();
-
-fn foo<'a, 'b, T>(_: &'a &'b (), v: &'b T) -> &'a T {
-    v
-}
-
-fn bad<'a, T>(x: &'a T) -> &'static T {
-    let f: fn(_, &'a T) -> &'static T = foo;
-    f(UNIT, x)
-}
-
-fn main() {
-    let value = {
-        let data = 22;
-        bad(&data)
-    };
-    let _ = *value;
-}
-"#
-            .into(),
-        },
-        input_path: None,  // Option<PathBuf>
-        output_dir: None,  // Option<PathBuf>
-        output_file: None, // Option<PathBuf>
+        input: config::Input::File(path::PathBuf::from(input_path)),
+        input_path: Some(path::PathBuf::from(input_path)), // Option<PathBuf>
+        output_dir: None,                                  // Option<PathBuf>
+        output_file: None,                                 // Option<PathBuf>
         file_loader: None, // Option<Box<dyn FileLoader + Send + Sync>>
         diagnostic_output: rustc_session::DiagnosticOutput::Default,
         lint_caps: FxHashMap::default(), // FxHashMap<lint::LintId, lint::Level>
@@ -96,7 +79,11 @@ fn main() {
             // Analyze the program and inspect the types of definitions.
             queries.global_ctxt().unwrap().take().enter(|tcx| {
                 let gen = gen::FormalityGen::new(tcx);
-                println!("{}", gen.generate_decls());
+                if emit_let {
+                    println!("{}", gen.emit_local_decls_in_let());
+                } else {
+                    println!("{}", gen.emit_local_crate());
+                }
             })
         });
     });

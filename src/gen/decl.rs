@@ -3,11 +3,7 @@ use rustc_middle::ty;
 use crate::gen::FormalityGen;
 
 impl<'tcx> FormalityGen<'tcx> {
-    pub fn generate_decls(&self) -> String {
-        self.emit_local_decls_in_let()
-    }
-
-    fn emit_local_crate(&self) -> String {
+    pub fn emit_local_crate(&self) -> String {
         let crate_name = self.tcx.crate_name(rustc_hir::def_id::LOCAL_CRATE);
 
         let crate_items = self
@@ -43,7 +39,7 @@ impl<'tcx> FormalityGen<'tcx> {
         format!("({crate_name} (crate [\n{crate_items}]))")
     }
 
-    fn emit_local_decls_in_let(&self) -> String {
+    pub fn emit_local_decls_in_let(&self) -> String {
         let mut item_names = Vec::new();
         let mut item_decls = Vec::new();
 
@@ -93,7 +89,7 @@ impl<'tcx> FormalityGen<'tcx> {
             .collect::<String>();
 
         let crate_name = self.tcx.crate_name(rustc_hir::def_id::LOCAL_CRATE);
-        let crate_decl = format!("(CrateDecl (term ({crate_name} (crate [{item_names}]))");
+        let crate_decl = format!("(CrateDecl (term ({crate_name} (crate [{item_names}]))))");
 
         format!("(redex-let*\n formality-mir\n [{item_decls}\n {crate_decl}\n ])")
     }

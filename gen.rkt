@@ -1,9 +1,9 @@
-(rust_out (crate [
+(test (crate [
 (unknown-item #0)
 
 (unknown-item std#2)
 
-(static UNIT[] where () : (user-ty (& static (& static ()))) =
+(static UNIT[] where () : (mf-apply user-ty (& static (& static ()))) =
  (∃ [(lifetime ?0)
      (lifetime ?1)
      (lifetime ?2)
@@ -14,10 +14,10 @@
      (lifetime ?7)
      (lifetime ?8)
      (lifetime ?9)] {
-  [(_0 (user-ty (& ?5 (& ?6 ()))) mut)
-   (_1 (user-ty (& ?7 (& ?8 ()))) ())
-   (_2 (user-ty (& ?9 ())) ())
-   (_3 (user-ty ()) ())]
+  [(_0 (mf-apply user-ty (& ?5 (& ?6 ()))) mut)
+   (_1 (mf-apply user-ty (& ?7 (& ?8 ()))) ())
+   (_2 (mf-apply user-ty (& ?9 ())) ())
+   (_3 (mf-apply user-ty ()) ())]
 
   [(bb0 {
      [(storage-live _1)
@@ -32,17 +32,17 @@
    })]
 }))
 
-(fn foo[(type T) (lifetime 'a) (lifetime 'b)] ((user-ty (& 'a (& 'b ()))) (user-ty (& 'b T))) -> (user-ty (& 'a T))
- where [((user-ty T) : std::marker::Sized[])]
+(fn foo[(type T) (lifetime %a) (lifetime %b)] ((mf-apply user-ty (& %a (& %b ()))) (mf-apply user-ty (& %b T))) -> (mf-apply user-ty (& %a T))
+ where [(T : std::marker::Sized[])]
  (∃ [(lifetime ?0)
      (lifetime ?1)
      (lifetime ?2)
      (lifetime ?3)
      (lifetime ?4)
      (lifetime ?5)] {
-  [(_0 (user-ty (& ?2 T)) mut)
-   (_1 (user-ty (& ?3 (& ?4 ()))) mut)
-   (_2 (user-ty (& ?5 T)) ())]
+  [(_0 (mf-apply user-ty (& ?2 T)) mut)
+   (_1 (mf-apply user-ty (& ?3 (& ?4 ()))) mut)
+   (_2 (mf-apply user-ty (& ?5 T)) ())]
 
   [(bb0 {
      [(_0 = (ref ?0 () (* _2)))]
@@ -50,8 +50,8 @@
    })]
 }))
 
-(fn bad[(type T) (lifetime 'a)] ((user-ty (& 'a T))) -> (user-ty (& static T))
- where [((user-ty T) : std::marker::Sized[])]
+(fn bad[(type T) (lifetime %a)] ((mf-apply user-ty (& %a T))) -> (mf-apply user-ty (& static T))
+ where [(T : std::marker::Sized[])]
  (∃ [(lifetime ?0)
      (lifetime ?1)
      (lifetime ?2)
@@ -81,13 +81,13 @@
      (lifetime ?26)
      (lifetime ?27)
      (lifetime ?28)] {
-  [(_0 (user-ty (& ?5 T)) mut)
-   (_1 (user-ty (& ?6 T)) ())
-   (_2 (user-ty (fn ((& ?7 (& ?8 ())) (& ?9 T)) -> (& ?10 T))) ())
-   (_3 (user-ty (fn ((& ?11 (& ?12 ())) (& ?13 T)) -> (& ?14 T))) mut)
-   (_4 (user-ty (& ?15 (& ?16 ()))) mut)
-   (_5 (user-ty (& ?17 (& ?18 (& ?19 ())))) ())
-   (_6 (user-ty (& ?20 T)) mut)]
+  [(_0 (mf-apply user-ty (& ?5 T)) mut)
+   (_1 (mf-apply user-ty (& ?6 T)) ())
+   (_2 (mf-apply user-ty (fn ((& ?7 (& ?8 ())) (& ?9 T)) -> (& ?10 T))) ())
+   (_3 (mf-apply user-ty (fn ((& ?11 (& ?12 ())) (& ?13 T)) -> (& ?14 T))) mut)
+   (_4 (mf-apply user-ty (& ?15 (& ?16 ()))) mut)
+   (_5 (mf-apply user-ty (& ?17 (& ?18 (& ?19 ())))) ())
+   (_6 (mf-apply user-ty (& ?20 T)) mut)]
 
   [(bb0 {
      [(storage-live _2)
@@ -118,18 +118,18 @@
    })]
 }))
 
-(fn main[] () -> (user-ty ())
+(fn main[] () -> (mf-apply user-ty ())
  where []
  (∃ [(lifetime ?0)
      (lifetime ?1)
      (lifetime ?2)
      (lifetime ?3)
      (lifetime ?4)] {
-  [(_0 (user-ty ()) mut)
-   (_1 (user-ty (& ?2 i32)) ())
-   (_2 (user-ty i32) ())
-   (_3 (user-ty (& ?3 i32)) mut)
-   (_4 (user-ty (& ?4 i32)) ())]
+  [(_0 (mf-apply user-ty ()) mut)
+   (_1 (mf-apply user-ty (& ?2 i32)) ())
+   (_2 (mf-apply user-ty i32) ())
+   (_3 (mf-apply user-ty (& ?3 i32)) mut)
+   (_4 (mf-apply user-ty (& ?4 i32)) ())]
 
   [(bb0 {
      [(storage-live _1)

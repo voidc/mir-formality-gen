@@ -4,10 +4,10 @@ use crate::gen::FormalityGen;
 
 impl<'tcx> FormalityGen<'tcx> {
     pub fn generate_decls(&self) -> String {
-        self.emit_current_crate_decl()
+        self.emit_local_decls_in_let()
     }
 
-    fn emit_current_crate_decl(&self) -> String {
+    fn emit_local_crate(&self) -> String {
         let crate_name = self.tcx.crate_name(rustc_hir::def_id::LOCAL_CRATE);
 
         let crate_items = self
@@ -41,6 +41,61 @@ impl<'tcx> FormalityGen<'tcx> {
             .collect::<String>();
 
         format!("({crate_name} (crate [\n{crate_items}]))")
+    }
+
+    fn emit_local_decls_in_let(&self) -> String {
+        let mut item_names = Vec::new();
+        let mut item_decls = Vec::new();
+
+        for crate_item_id in self.tcx.hir().items() {
+            let item = self.tcx.hir().item(crate_item_id);
+            let (item_name, item_decl) = match item.kind {
+                rustc_hir::ItemKind::Static(_, _, _) => (
+                    format!("StaticDecl_{}", item.ident),
+                    self.emit_static_decl(item.ident, item.def_id),
+                ),
+                rustc_hir::ItemKind::Fn(_, _, _) => (
+                    format!("FnDecl_{}", item.ident),
+                    self.emit_fn_decl(item.ident, item.def_id, true),
+                ),
+                rustc_hir::ItemKind::Trait(_, _, _, _, trait_items) => (
+                    format!("TraitDecl_{}", item.ident),
+                    self.emit_trait_decl(item.ident, item.def_id, trait_items),
+                ),
+                rustc_hir::ItemKind::Impl(impl_item) => (
+                    format!("TraitImplDecl_{}", item.ident),
+                    self.emit_trait_impl_decl(item.def_id, impl_item.items),
+                ),
+                rustc_hir::ItemKind::Struct(_, _)
+                | rustc_hir::ItemKind::Enum(_, _)
+                | rustc_hir::ItemKind::Union(_, _) => (
+                    format!("AdtDecl_{}", item.ident),
+                    self.emit_adt_decl(item.ident, item.def_id),
+                ),
+                _ => (
+                    format!("UnknownDecl_{}", item.ident),
+                    format!("(unknown-item {:?})", item.ident),
+                ),
+            };
+
+            item_decls.push(format!("({item_name} (term {item_decl}))"));
+            item_names.push(item_name);
+        }
+
+        let item_decls = item_decls
+            .into_iter()
+            .intersperse("\n ".to_string())
+            .collect::<String>();
+
+        let item_names = item_names
+            .into_iter()
+            .intersperse(" ".to_string())
+            .collect::<String>();
+
+        let crate_name = self.tcx.crate_name(rustc_hir::def_id::LOCAL_CRATE);
+        let crate_decl = format!("(CrateDecl (term ({crate_name} (crate [{item_names}]))");
+
+        format!("(redex-let*\n formality-mir\n [{item_decls}\n {crate_decl}\n ])")
     }
 
     fn emit_adt_decl(

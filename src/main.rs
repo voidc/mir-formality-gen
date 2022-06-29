@@ -95,7 +95,7 @@ fn main() {
         compiler.enter(|queries| {
             // Analyze the program and inspect the types of definitions.
             queries.global_ctxt().unwrap().take().enter(|tcx| {
-                let gen = gen::FormalityGen { tcx };
+                let gen = gen::FormalityGen::new(tcx);
                 println!("{}", gen.generate_decls());
             })
         });

@@ -212,8 +212,12 @@ impl<'tcx> FormalityGen<'tcx> {
     pub fn emit_bound_var(&self, bound_var: ty::BoundVariableKind) -> String {
         match bound_var {
             ty::BoundVariableKind::Region(br_kind) => match br_kind {
-                ty::BoundRegionKind::BrNamed(_, name) => format!("(lifetime {name})"),
-                ty::BoundRegionKind::BrAnon(idx) => format!("(lifetime '{idx})"),
+                ty::BoundRegionKind::BrNamed(_, name) => {
+                    format!("(lifetime {})", self.emit_ident(&name))
+                }
+                ty::BoundRegionKind::BrAnon(idx) => {
+                    format!("(lifetime {}{idx})", Self::LIFETIME_MARKER)
+                }
                 _ => format!("(lifetime {br_kind:?})"),
             },
             ty::BoundVariableKind::Ty(bt_kind) => format!("(type {bt_kind:?})"),
@@ -224,10 +228,10 @@ impl<'tcx> FormalityGen<'tcx> {
     pub fn emit_lifetime(&self, lifetime: ty::Region<'tcx>) -> String {
         match lifetime.kind() {
             ty::RegionKind::ReStatic => "static".to_string(),
-            ty::RegionKind::ReEarlyBound(re) => format!("{}", re.name),
+            ty::RegionKind::ReEarlyBound(re) => format!("{}", self.emit_ident(&re.name)),
             ty::RegionKind::ReLateBound(_, bound_region) => match bound_region.kind {
-                ty::BoundRegionKind::BrNamed(_, name) => format!("{name}"),
-                ty::BoundRegionKind::BrAnon(idx) => format!("'{idx}"),
+                ty::BoundRegionKind::BrNamed(_, name) => format!("{}", self.emit_ident(&name)),
+                ty::BoundRegionKind::BrAnon(idx) => format!("{}{idx}", Self::LIFETIME_MARKER),
                 _ => format!("{:?}", bound_region.kind),
             },
             ty::RegionKind::ReErased => "?".to_string(),

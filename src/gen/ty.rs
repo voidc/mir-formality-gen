@@ -18,7 +18,7 @@ impl<'tcx> FormalityGen<'tcx> {
                     .substs
                     .iter()
                     .skip(1)
-                    .map(|arg| self.emit_generic_arg(arg))
+                    .map(|arg| self.emit_generic_arg(arg, false))
                     .intersperse(" ".to_string())
                     .collect::<String>();
 
@@ -47,7 +47,7 @@ impl<'tcx> FormalityGen<'tcx> {
                     .projection_ty
                     .substs
                     .iter()
-                    .map(|arg| self.emit_generic_arg(arg))
+                    .map(|arg| self.emit_generic_arg(arg, false))
                     .intersperse(" ".to_string())
                     .collect::<String>();
 
@@ -86,7 +86,7 @@ impl<'tcx> FormalityGen<'tcx> {
                 let def_path = self.tcx.def_path_str(adt_def.did());
                 let substs_str = substs
                     .iter()
-                    .map(|arg| self.emit_generic_arg(arg))
+                    .map(|arg| self.emit_generic_arg(arg, true))
                     .intersperse(" ".to_string())
                     .collect::<String>();
 
@@ -153,7 +153,7 @@ impl<'tcx> FormalityGen<'tcx> {
                     .iter()
                     .take(trait_generics.count())
                     .skip(1)
-                    .map(|arg| self.emit_generic_arg(arg))
+                    .map(|arg| self.emit_generic_arg(arg, true))
                     .intersperse(" ".to_string())
                     .collect::<String>();
 
@@ -161,7 +161,7 @@ impl<'tcx> FormalityGen<'tcx> {
                     .substs
                     .iter()
                     .skip(trait_generics.count())
-                    .map(|arg| self.emit_generic_arg(arg))
+                    .map(|arg| self.emit_generic_arg(arg, true))
                     .intersperse(" ".to_string())
                     .collect::<String>();
 
@@ -176,7 +176,7 @@ impl<'tcx> FormalityGen<'tcx> {
     }
 
     pub fn emit_ty(&self, ty: ty::Ty<'tcx>) -> String {
-        format!("(user-ty {})", self.emit_user_ty(ty))
+        format!("(mf-apply user-ty {})", self.emit_user_ty(ty))
     }
 
     pub fn emit_trait_ref(&self, trait_ref: ty::TraitRef<'tcx>) -> String {
@@ -184,17 +184,18 @@ impl<'tcx> FormalityGen<'tcx> {
         let args = trait_ref
             .substs
             .iter()
-            .map(|arg| self.emit_generic_arg(arg))
+            .map(|arg| self.emit_generic_arg(arg, false))
             .intersperse(" ".to_string())
             .collect::<String>();
 
         format!("({name}[{args}])")
     }
 
-    fn emit_generic_arg(&self, generic_arg: ty::subst::GenericArg<'tcx>) -> String {
+    fn emit_generic_arg(&self, generic_arg: ty::subst::GenericArg<'tcx>, user_ty: bool) -> String {
         match generic_arg.unpack() {
             ty::subst::GenericArgKind::Lifetime(lt) => self.emit_lifetime(lt),
-            ty::subst::GenericArgKind::Type(ty) => self.emit_user_ty(ty),
+            ty::subst::GenericArgKind::Type(ty) if user_ty => self.emit_user_ty(ty),
+            ty::subst::GenericArgKind::Type(ty) => self.emit_ty(ty),
             ty::subst::GenericArgKind::Const(_) => unimplemented!(),
         }
     }

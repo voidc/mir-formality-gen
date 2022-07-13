@@ -3,60 +3,53 @@ use rustc_middle::ty;
 use crate::gen::FormalityGen;
 
 impl<'tcx> FormalityGen<'tcx> {
-    pub fn emit_where_clause(
-        &self,
-        pred: &ty::Predicate<'tcx>,
-        replace_self_ty: Option<String>,
-    ) -> String {
+    pub fn emit_where_clause(&self, pred: &ty::Predicate<'tcx>, is_bounds_clause: bool) -> String {
         let clause = match pred.kind().skip_binder() {
             ty::PredicateKind::Trait(trait_pred) => {
                 let trait_name = self.tcx.def_path_str(trait_pred.def_id());
-                let self_ty = replace_self_ty.unwrap_or_else(|| self.emit_ty(trait_pred.self_ty()));
 
                 let params = trait_pred
                     .trait_ref
                     .substs
                     .iter()
                     .skip(1)
-                    .map(|arg| self.emit_generic_arg(arg, false))
+                    .map(|arg| self.emit_generic_arg(arg))
                     .intersperse(" ".to_string())
                     .collect::<String>();
 
-                format!("({self_ty} : {trait_name}[{params}])")
+                if is_bounds_clause {
+                    format!("({trait_name}[{params}])")
+                } else {
+                    let self_ty = self.emit_user_ty(trait_pred.self_ty());
+                    format!("({self_ty} : {trait_name}[{params}])")
+                }
             }
             ty::PredicateKind::RegionOutlives(outlives_pred) => {
-                assert!(replace_self_ty.is_none());
+                assert!(!is_bounds_clause);
                 format!(
-                    "({} : {}))",
+                    "((lifetime {}) : (lifetime {}))",
                     self.emit_lifetime(outlives_pred.0),
                     self.emit_lifetime(outlives_pred.1)
                 )
             }
             ty::PredicateKind::TypeOutlives(outlives_pred) => {
-                let self_ty = replace_self_ty.unwrap_or_else(|| self.emit_ty(outlives_pred.0));
-                format!("({} : {}))", self_ty, self.emit_lifetime(outlives_pred.1))
+                if is_bounds_clause {
+                    self.emit_lifetime(outlives_pred.1)
+                } else {
+                    let self_ty = self.emit_user_ty(outlives_pred.0);
+                    format!(
+                        "((type {}) : (lifetime {})))",
+                        self_ty,
+                        self.emit_lifetime(outlives_pred.1)
+                    )
+                }
             }
             ty::PredicateKind::Projection(proj_pred) => {
-                assert!(replace_self_ty.is_none());
-                let assoc_item: &ty::AssocItem = self
-                    .tcx
-                    .associated_item(proj_pred.projection_ty.item_def_id);
-                let trait_name = self.tcx.def_path_str(assoc_item.container.id());
-
-                let alias_params = proj_pred
-                    .projection_ty
-                    .substs
-                    .iter()
-                    .map(|arg| self.emit_generic_arg(arg, false))
-                    .intersperse(" ".to_string())
-                    .collect::<String>();
-
-                let rhs_ty = proj_pred.term.ty().unwrap_or_else(|| unimplemented!());
-
+                let rhs_ty =
+                    self.emit_user_ty(proj_pred.term.ty().unwrap_or_else(|| unimplemented!()));
                 format!(
-                    "((alias-ty ({trait_name} {})[{alias_params}]) == {})",
-                    assoc_item.name,
-                    self.emit_ty(rhs_ty),
+                    "({} == {rhs_ty})",
+                    self.emit_projection(proj_pred.projection_ty, !is_bounds_clause)
                 )
             }
             _ => "unknown-predicate".to_string(),
@@ -73,11 +66,11 @@ impl<'tcx> FormalityGen<'tcx> {
                 .intersperse(" ".to_string())
                 .collect::<String>();
 
-            format!("(∀ ({vars}) {clause})")
+            format!("(for[{vars}] {clause})")
         }
     }
 
-    fn emit_user_ty(&self, ty: ty::Ty<'tcx>) -> String {
+    pub fn emit_user_ty(&self, ty: ty::Ty<'tcx>) -> String {
         match ty.kind() {
             ty::TyKind::Bool => "bool".into(),
             ty::TyKind::Int(int_ty) => int_ty.name_str().into(),
@@ -86,7 +79,7 @@ impl<'tcx> FormalityGen<'tcx> {
                 let def_path = self.tcx.def_path_str(adt_def.did());
                 let substs_str = substs
                     .iter()
-                    .map(|arg| self.emit_generic_arg(arg, true))
+                    .map(|arg| self.emit_generic_arg(arg))
                     .intersperse(" ".to_string())
                     .collect::<String>();
 
@@ -141,37 +134,47 @@ impl<'tcx> FormalityGen<'tcx> {
             }
             ty::TyKind::Projection(projection_ty) => {
                 let projection_ty: &ty::ProjectionTy<'tcx> = projection_ty;
-
-                let self_ty = self.emit_user_ty(projection_ty.self_ty());
-                let assoc_item = self.tcx.associated_item(projection_ty.item_def_id);
-                let trait_def_id = assoc_item.container.id();
-                let trait_name = self.tcx.def_path_str(trait_def_id);
-                let trait_generics = self.tcx.generics_of(trait_def_id);
-
-                let trait_params = projection_ty
-                    .substs
-                    .iter()
-                    .take(trait_generics.count())
-                    .skip(1)
-                    .map(|arg| self.emit_generic_arg(arg, true))
-                    .intersperse(" ".to_string())
-                    .collect::<String>();
-
-                let assoc_params = projection_ty
-                    .substs
-                    .iter()
-                    .skip(trait_generics.count())
-                    .map(|arg| self.emit_generic_arg(arg, true))
-                    .intersperse(" ".to_string())
-                    .collect::<String>();
-
-                format!(
-                    "(< {self_ty} as {trait_name}[{trait_params}] > :: {}[{assoc_params}])",
-                    assoc_item.name,
-                )
+                format!("({})", self.emit_projection(*projection_ty, true),)
             }
             ty::TyKind::Param(param_ty) => format!("{}", param_ty.name),
             _ => format!("(unknown-ty {ty:?})"),
+        }
+    }
+
+    fn emit_projection(&self, projection_ty: ty::ProjectionTy<'tcx>, include_self: bool) -> String {
+        let assoc_item = self.tcx.associated_item(projection_ty.item_def_id);
+        let trait_def_id = assoc_item.container.id();
+        let trait_name = self.tcx.def_path_str(trait_def_id);
+        let trait_generics = self.tcx.generics_of(trait_def_id);
+
+        let trait_params = projection_ty
+            .substs
+            .iter()
+            .take(trait_generics.count())
+            .skip(1)
+            .map(|arg| self.emit_generic_arg(arg))
+            .intersperse(" ".to_string())
+            .collect::<String>();
+
+        let assoc_params = projection_ty
+            .substs
+            .iter()
+            .skip(trait_generics.count())
+            .map(|arg| self.emit_generic_arg(arg))
+            .intersperse(" ".to_string())
+            .collect::<String>();
+
+        if include_self {
+            let self_ty = self.emit_user_ty(projection_ty.self_ty());
+            format!(
+                "< {self_ty} as {trait_name}[{trait_params}] > :: {}[{assoc_params}]",
+                assoc_item.name,
+            )
+        } else {
+            format!(
+                "{trait_name}[{trait_params}] :: {}[{assoc_params}]",
+                assoc_item.name,
+            )
         }
     }
 
@@ -183,23 +186,10 @@ impl<'tcx> FormalityGen<'tcx> {
         }
     }
 
-    pub fn emit_trait_ref(&self, trait_ref: ty::TraitRef<'tcx>) -> String {
-        let name = self.tcx.def_path_str(trait_ref.def_id);
-        let args = trait_ref
-            .substs
-            .iter()
-            .map(|arg| self.emit_generic_arg(arg, false))
-            .intersperse(" ".to_string())
-            .collect::<String>();
-
-        format!("({name}[{args}])")
-    }
-
-    fn emit_generic_arg(&self, generic_arg: ty::subst::GenericArg<'tcx>, user_ty: bool) -> String {
+    pub fn emit_generic_arg(&self, generic_arg: ty::subst::GenericArg<'tcx>) -> String {
         match generic_arg.unpack() {
             ty::subst::GenericArgKind::Lifetime(lt) => self.emit_lifetime(lt),
-            ty::subst::GenericArgKind::Type(ty) if user_ty => self.emit_user_ty(ty),
-            ty::subst::GenericArgKind::Type(ty) => self.emit_ty(ty),
+            ty::subst::GenericArgKind::Type(ty) => self.emit_user_ty(ty),
             ty::subst::GenericArgKind::Const(_) => unimplemented!(),
         }
     }

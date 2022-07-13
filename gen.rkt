@@ -1,9 +1,20 @@
-(test (crate [
-(unknown-item #0)
 
-(unknown-item std#2)
+#lang racket
+(require redex/reduction-semantics
+         "src/ty/user-ty.rkt"
+         "src/rust/grammar.rkt"
+         )
 
-(static UNIT[] where () : (mf-apply user-ty (& static (& static ()))) =
+(module+ test
+  (redex-let*
+   formality-rust
+
+   [(Rust/Program (term ([(crate test {
+
+
+
+
+(static UNIT[] where [] : (& static (& static ())) =
  (∃ [(lifetime ?0)
      (lifetime ?1)
      (lifetime ?2)
@@ -32,7 +43,7 @@
    })]
 }))
 
-(fn foo[(type T) (lifetime %a) (lifetime %b)] ((mf-apply user-ty (& %a (& %b ()))) (mf-apply user-ty (& %b T))) -> (mf-apply user-ty (& %a T))
+(fn foo[(type T) (lifetime %a) (lifetime %b)] ((& %a (& %b ())) (& %b T)) -> (& %a T)
  where [(T : std::marker::Sized[])]
  (∃ [(lifetime ?0)
      (lifetime ?1)
@@ -50,7 +61,7 @@
    })]
 }))
 
-(fn bad[(type T) (lifetime %a)] ((mf-apply user-ty (& %a T))) -> (mf-apply user-ty (& static T))
+(fn bad[(type T) (lifetime %a)] ((& %a T)) -> (& static T)
  where [(T : std::marker::Sized[])]
  (∃ [(lifetime ?0)
      (lifetime ?1)
@@ -118,7 +129,7 @@
    })]
 }))
 
-(fn main[] () -> (mf-apply user-ty ())
+(fn main[] () -> ()
  where []
  (∃ [(lifetime ?0)
      (lifetime ?1)
@@ -155,4 +166,9 @@
      []
      resume
    })]
-}))]))
+}))})] test)))
+    ]
+  
+   ()
+   )
+  )

@@ -16,6 +16,26 @@ impl<'tcx> FormalityGen<'tcx> {
         FormalityGen { tcx }
     }
 
+    pub fn generate(&self) -> String {
+        let program = self.emit_program();
+        format!(
+            r#"
+#lang racket
+(require redex/reduction-semantics
+         "src/ty/user-ty.rkt"
+         "src/rust/grammar.rkt"
+         )
+
+(module+ test
+  (test-match
+   formality-rust
+   Rust/Program
+   (term {program}))
+   )
+  )"#
+        )
+    }
+
     pub fn emit_ident(&self, ident: &Symbol) -> String {
         // Racket special characters: ( ) [ ] { } " , ' ` ; # | \
         ident.as_str().replace('\'', Self::LIFETIME_MARKER)

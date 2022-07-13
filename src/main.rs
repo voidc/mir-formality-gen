@@ -25,7 +25,6 @@ mod renumber_mir;
 
 fn main() {
     let args = env::args().skip(1).collect::<Vec<_>>();
-    let emit_let = args.iter().any(|arg| arg == "--let");
     let input_path = args
         .iter()
         .find(|arg| !arg.starts_with("--"))
@@ -79,11 +78,7 @@ fn main() {
             // Analyze the program and inspect the types of definitions.
             queries.global_ctxt().unwrap().take().enter(|tcx| {
                 let gen = gen::FormalityGen::new(tcx);
-                if emit_let {
-                    println!("{}", gen.emit_local_decls_in_let());
-                } else {
-                    println!("{}", gen.emit_local_crate());
-                }
+                println!("{}", gen.generate());
             })
         });
     });

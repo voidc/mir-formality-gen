@@ -124,7 +124,7 @@ impl<'tcx> FormalityGen<'tcx> {
                 rustc_hir::AssocItemKind::Fn { .. } => self.emit_fn_decl(
                     trait_item.ident,
                     trait_item.id.def_id,
-                    trait_item.defaultness.has_value(),
+                    self.tcx.impl_defaultness(trait_item.id.def_id).has_value(),
                 ),
                 rustc_hir::AssocItemKind::Type => {
                     self.emit_assoc_ty_decl(trait_item.ident, trait_item.id.def_id)

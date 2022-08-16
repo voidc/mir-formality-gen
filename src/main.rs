@@ -40,10 +40,6 @@ fn main() {
         // Command line options
         opts: config::Options {
             maybe_sysroot: Some(path::PathBuf::from(sysroot)),
-            debugging_opts: config::DebuggingOptions {
-                dump_mir: Some("all".to_string()),
-                ..config::DebuggingOptions::default()
-            },
             ..config::Options::default()
         },
         // cfg! configuration in addition to the default ones

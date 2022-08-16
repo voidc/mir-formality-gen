@@ -24,13 +24,17 @@ impl<'tcx> FormalityGen<'tcx> {
 (require redex/reduction-semantics
          "src/ty/user-ty.rkt"
          "src/rust/grammar.rkt"
+         "src/rust/prove.rkt"
          )
 
 (module+ test
-  (test-match
+  (redex-let*
    formality-rust
-   Rust/Program
-   (term {program}))
+
+   [(Rust/Program (term {program}))
+    ]
+
+   (test-equal #t (term (rust:is-program-ok Rust/Program)))
    )
   )"#
         )

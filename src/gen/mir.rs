@@ -25,12 +25,14 @@ impl<'tcx> FormalityGen<'tcx> {
         match operand {
             mir::Operand::Copy(place) => format!("(copy {})", self.emit_place(place)),
             mir::Operand::Move(place) => format!("(move {})", self.emit_place(place)),
-            mir::Operand::Constant(ct) => format!(
-                "(const {})",
-                ct.literal
-                    .try_to_scalar()
-                    .unwrap_or_else(|| unimplemented!())
-            ),
+            mir::Operand::Constant(ct) => {
+                if let Some(int) = ct.literal.try_to_scalar().and_then(|s| s.try_to_int().ok()) {
+                    format!("(const {})", int)
+                } else {
+                    eprintln!("unknown const: {ct}");
+                    "unknown-const".to_string()
+                }
+            }
         }
     }
 
@@ -80,7 +82,10 @@ impl<'tcx> FormalityGen<'tcx> {
                     self.emit_operand(&operands.1)
                 )
             }
-            _ => format!("(unknown-rvalue {rvalue:?})"),
+            _ => {
+                eprintln!("unknown rvalue: {rvalue:?}");
+                format!("unknown-rvalue")
+            }
         }
     }
 
@@ -102,7 +107,10 @@ impl<'tcx> FormalityGen<'tcx> {
             mir::StatementKind::StorageLive(local) => format!("(storage-live _{})", local.index()),
             mir::StatementKind::StorageDead(local) => format!("(storage-dead _{})", local.index()),
             mir::StatementKind::Nop => format!("noop"),
-            _ => "unknown-stmt".to_string(),
+            _ => {
+                eprintln!("unknown stmt: {stmt:?}");
+                "noop".to_string()
+            }
         }
     }
 
@@ -160,7 +168,10 @@ impl<'tcx> FormalityGen<'tcx> {
                     target.unwrap().index()
                 )
             }
-            _ => "unknown-term".to_string(),
+            _ => {
+                eprintln!("unknown terminator: {term:?}");
+                "abort".to_string()
+            }
         }
     }
 

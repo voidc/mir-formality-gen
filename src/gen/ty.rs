@@ -52,7 +52,7 @@ impl<'tcx> FormalityGen<'tcx> {
                     self.emit_projection(proj_pred.projection_ty, !is_bounds_clause)
                 )
             }
-            _ => "unknown-predicate".to_string(),
+            _ => unimplemented!(),
         };
 
         if pred.kind().bound_vars().is_empty() {
@@ -137,13 +137,13 @@ impl<'tcx> FormalityGen<'tcx> {
                 format!("({})", self.emit_projection(*projection_ty, true),)
             }
             ty::TyKind::Param(param_ty) => format!("{}", param_ty.name),
-            _ => format!("(unknown-ty {ty:?})"),
+            _ => unimplemented!(),
         }
     }
 
     fn emit_projection(&self, projection_ty: ty::ProjectionTy<'tcx>, include_self: bool) -> String {
         let assoc_item = self.tcx.associated_item(projection_ty.item_def_id);
-        let trait_def_id = assoc_item.container.id();
+        let trait_def_id = assoc_item.container_id(self.tcx);
         let trait_name = self.tcx.def_path_str(trait_def_id);
         let trait_generics = self.tcx.generics_of(trait_def_id);
 
@@ -230,7 +230,7 @@ impl<'tcx> FormalityGen<'tcx> {
             },
             ty::RegionKind::ReErased => "?".to_string(),
             ty::RegionKind::ReVar(vid) => format!("?{}", vid.index()),
-            _ => format!("(unknown-lt {lifetime:?})"),
+            _ => unimplemented!(),
         }
     }
 }

@@ -1,4 +1,5 @@
 use rustc_middle::ty;
+use rustc_span::symbol::kw;
 
 use crate::gen::FormalityGen;
 
@@ -6,7 +7,7 @@ impl<'tcx> FormalityGen<'tcx> {
     pub fn emit_program(&self) -> String {
         let crate_name = self.tcx.crate_name(rustc_hir::def_id::LOCAL_CRATE);
         let local_crate = self.emit_local_crate();
-        format!("([{local_crate}] {crate_name})")
+        format!("([libcore {local_crate}] {crate_name})")
     }
 
     pub fn emit_local_crate(&self) -> String {
@@ -166,11 +167,11 @@ impl<'tcx> FormalityGen<'tcx> {
             .impl_trait_ref(def_id)
             .unwrap_or_else(|| unimplemented!("inherent impl"));
 
-        let trait_name = self.tcx.def_path_str(trait_ref.def_id);
+        let trait_name = self.emit_def_path(trait_ref.def_id);
         let trait_args = trait_ref
             .substs
             .iter()
-            .skip(1)
+            .skip(1) // skip self type
             .map(|arg| self.emit_generic_arg(arg))
             .intersperse(" ".to_string())
             .collect::<String>();
@@ -252,7 +253,7 @@ impl<'tcx> FormalityGen<'tcx> {
             )
         } else {
             format!(
-                "(fn {name}[{vars}] ({inputs}) -> {output} where [{where_clauses}] trusted-fn-body)"
+                "(fn {name}[{vars}] ({inputs}) -> {output} where [{where_clauses}] {{trusted-fn-body}})"
             )
         }
     }
@@ -274,16 +275,19 @@ impl<'tcx> FormalityGen<'tcx> {
         format!("(static {name}[] where [] : {ty_str} =\n {body_str})")
     }
 
+    /// Returns space separated string of generic parameters without sourrounding parentheses
     fn emit_generics(&self, def_id: rustc_span::def_id::LocalDefId) -> String {
         let generics: &'tcx ty::Generics = self.tcx.generics_of(def_id);
         generics
             .params
             .iter()
+            .filter(|param| param.name != kw::SelfUpper) // skip Self parameter of traits
             .map(|param| self.emit_generic_param(param))
             .intersperse(" ".to_string())
             .collect::<String>()
     }
 
+    /// Returns space separated string of where clauses without sourrounding parentheses
     fn emit_where_clauses(&self, def_id: rustc_span::def_id::LocalDefId) -> String {
         let predicates = self.tcx.predicates_of(def_id).predicates;
         predicates

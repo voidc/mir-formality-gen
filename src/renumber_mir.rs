@@ -6,7 +6,10 @@ use rustc_middle::mir::{
 };
 use rustc_middle::ty::{self, SubstsRef, Ty, TyCtxt, TypeFoldable};
 
-/// Returns number of created region vars.
+/// This function is taken from the compiler.
+/// See also https://doc.rust-lang.org/nightly/nightly-rustc/src/rustc_borrowck/renumber.rs.html
+///
+/// Returns the number of created region vars.
 pub fn replace_regions_in_mir<'tcx>(tcx: &TyCtxt<'tcx>, body: &mut mir::Body<'tcx>) -> usize {
     tcx.infer_ctxt().enter(|ref infcx| {
         let mut visitor = RenumberVisitor { infcx };

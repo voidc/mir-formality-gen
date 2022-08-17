@@ -6,13 +6,13 @@ impl<'tcx> FormalityGen<'tcx> {
     pub fn emit_where_clause(&self, pred: &ty::Predicate<'tcx>, is_bounds_clause: bool) -> String {
         let clause = match pred.kind().skip_binder() {
             ty::PredicateKind::Trait(trait_pred) => {
-                let trait_name = self.tcx.def_path_str(trait_pred.def_id());
+                let trait_name = self.emit_def_path(trait_pred.def_id());
 
                 let params = trait_pred
                     .trait_ref
                     .substs
                     .iter()
-                    .skip(1)
+                    .skip(1) // skip the self type
                     .map(|arg| self.emit_generic_arg(arg))
                     .intersperse(" ".to_string())
                     .collect::<String>();
@@ -76,14 +76,14 @@ impl<'tcx> FormalityGen<'tcx> {
             ty::TyKind::Int(int_ty) => int_ty.name_str().into(),
             ty::TyKind::Uint(uint_ty) => uint_ty.name_str().into(),
             ty::TyKind::Adt(adt_def, substs) => {
-                let def_path = self.tcx.def_path_str(adt_def.did());
+                let def_path = self.emit_def_path(adt_def.did());
                 let substs_str = substs
                     .iter()
                     .map(|arg| self.emit_generic_arg(arg))
                     .intersperse(" ".to_string())
                     .collect::<String>();
 
-                format!("({def_path} {substs_str})")
+                format!("({def_path} < {substs_str} >)")
             }
             ty::TyKind::Ref(lt, ty, is_mut) => {
                 let lifetime_str = self.emit_lifetime(*lt);
@@ -116,7 +116,7 @@ impl<'tcx> FormalityGen<'tcx> {
                         .intersperse(" ".to_string())
                         .collect::<String>();
 
-                    format!("(for ({vars}) {fn_ty})")
+                    format!("(for[{vars}] {fn_ty})")
                 }
             }
             ty::TyKind::Tuple(substs) => {
@@ -141,17 +141,20 @@ impl<'tcx> FormalityGen<'tcx> {
         }
     }
 
+    /// Used to emit types and predicates.
+    /// For bounds clauses, the self type is not included.
     fn emit_projection(&self, projection_ty: ty::ProjectionTy<'tcx>, include_self: bool) -> String {
         let assoc_item = self.tcx.associated_item(projection_ty.item_def_id);
         let trait_def_id = assoc_item.container_id(self.tcx);
-        let trait_name = self.tcx.def_path_str(trait_def_id);
+        let trait_name = self.emit_def_path(trait_def_id);
         let trait_generics = self.tcx.generics_of(trait_def_id);
 
+        // split projection_ty.substs into params of the trait and params of the assoc type
         let trait_params = projection_ty
             .substs
             .iter()
             .take(trait_generics.count())
-            .skip(1)
+            .skip(1) // skip self type
             .map(|arg| self.emit_generic_arg(arg))
             .intersperse(" ".to_string())
             .collect::<String>();
@@ -182,6 +185,7 @@ impl<'tcx> FormalityGen<'tcx> {
         if let ty::TyKind::Param(param_ty) = ty.kind() {
             format!("{}", param_ty.name)
         } else {
+            // convert UserTy to Ty by calling the user-ty metafunction
             format!("(mf-apply user-ty {})", self.emit_user_ty(ty))
         }
     }
@@ -205,6 +209,7 @@ impl<'tcx> FormalityGen<'tcx> {
 
     pub fn emit_bound_var(&self, bound_var: ty::BoundVariableKind) -> String {
         match bound_var {
+            // lifetime names are prefixed with %
             ty::BoundVariableKind::Region(br_kind) => match br_kind {
                 ty::BoundRegionKind::BrNamed(_, name) => {
                     format!("(lifetime {})", self.emit_ident(&name))

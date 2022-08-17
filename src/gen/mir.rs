@@ -30,7 +30,7 @@ impl<'tcx> FormalityGen<'tcx> {
                     format!("(const {})", int)
                 } else {
                     eprintln!("unknown const: {ct}");
-                    "unknown-const".to_string()
+                    "(const 0)".to_string()
                 }
             }
         }
@@ -162,7 +162,7 @@ impl<'tcx> FormalityGen<'tcx> {
                     .collect::<String>();
 
                 format!(
-                    "(call {} {arg_ops} {} (bb{}))",
+                    "(call {}[{arg_ops}] {} (bb{}))",
                     self.emit_operand(func),
                     self.emit_place(destination),
                     target.unwrap().index()
@@ -177,6 +177,8 @@ impl<'tcx> FormalityGen<'tcx> {
 
     pub fn emit_body(&self, body: &mir::Body<'tcx>) -> String {
         let mut body = body.clone();
+        // In the MIR returned by the mir_built query, regions have been erased.
+        // Thus, we have to assign fresh variables (?0, ?1, ...) to them here.
         let num_re_vars = renumber_mir::replace_regions_in_mir(&self.tcx, &mut body);
 
         let vars = (0..num_re_vars)
@@ -201,6 +203,7 @@ impl<'tcx> FormalityGen<'tcx> {
             .intersperse("\n   ".to_string())
             .collect::<String>();
 
+        // Basic blocks are labeled bb0, bb1, ...
         let blocks = body
             .basic_blocks()
             .iter_enumerated()
